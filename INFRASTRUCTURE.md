@@ -142,7 +142,7 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 
 ## 8. Standard-Workflow: Neues Dashboard hinzufügen
 
-1. **DNS:** A-Record auf Synology NAS anlegen (`<name>.ema-industrie.de` → 192.168.178.70) — **möglichst früh im Prozess anlegen**, da ein neuer Eintrag über die FritzBox/VPN bis zu 3h durch negatives Caching verzögert sichtbar werden kann (siehe Abschnitt 10). Mit `dig <name>.ema-industrie.de @192.168.178.100` prüfen, ob die NAS selbst schon korrekt antwortet.
+1. **DNS:** A-Record auf Synology NAS anlegen (`<name>.ema-industrie.de` → 192.168.178.70) — **als aller ersten Schritt, vor jeder weiteren Aktion.** Mit `dig <name>.ema-industrie.de @192.168.178.100` verifizieren, dass die NAS selbst korrekt antwortet, **bevor** der Name irgendwo sonst berührt wird (Browser-Aufruf, Portalseiten-Kachel, Caddyfile-Block aktivieren, Status-Check-Skript). Der negative Cache entsteht dadurch, dass irgendetwas den Namen abfragt, *bevor* der Eintrag existiert — nicht durch das bloße Anlegen selbst. Danach gilt: bis zu 3h einplanen, bevor der Name über die FritzBox/VPN sichtbar wird, falls doch schon vorher abgefragt wurde (siehe Abschnitt 10).
 2. **Port vergeben:** nächsten freien Port im passenden Bereich wählen (siehe Abschnitt 5, Port-Konvention)
 3. **Projekt vorbereiten:** Repo/Ordner auf dem Mac mini anlegen, Docker-Compose-Service definieren, `caddy-net` als externes Netzwerk einbinden
 4. **Starten:** `docker compose up --build -d`
