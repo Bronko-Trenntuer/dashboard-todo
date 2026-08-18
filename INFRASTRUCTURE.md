@@ -119,7 +119,7 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 | Name | Subdomain | Container-Name | Interner Port | Status |
 |---|---|---|---|---|
 | EMA-Dashboard (Auktionsboard) | dashboard.ema-industrie.de | auktionsboard | 5000 | Live |
-| Dashboard-Todo | dashboard-todo.ema-industrie.de | dashboard-todo | 5100 | Noch nicht aktiv |
+| Dashboard-Todo | dashboard-todo.ema-industrie.de | dashboard-todo | 5100 | Live |
 | Gutachten-Dashboard | — | — | — | In Einrichtung (Umzug intern geplant) |
 | Abholungen-Dashboard | — | — | — | In Einrichtung |
 
