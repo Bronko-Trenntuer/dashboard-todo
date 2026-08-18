@@ -46,12 +46,6 @@
 
 **Bei neuem Dashboard:** neuen A-Record `<name>.ema-industrie.de` → `192.168.178.70` anlegen (intern). Falls extern nötig: separat klären, ob über NAS-Reverse-Proxy (Port 8443-Modell) oder ausschließlich intern/VPN.
 
-**Wichtige Falle (gefunden 2026-08-18 beim `dashboard-todo`-Rollout):** Alle Records haben TTL `86400` (24h) — das ist aber NICHT die negative-Cache-TTL. Testet man einen Namen per `nslookup` **bevor** der A-Record angelegt ist, cached die FritzBox (`192.168.178.1`) diese NXDOMAIN-Antwort negativ, gemäß dem **letzten Feld des SOA-Records** der Zone (verifiziert per `dig ema-industrie.de SOA @192.168.178.100`: Wert `10800` = **3 Stunden**, nicht 24h). Ein späteres erneutes `nslookup` über die FritzBox liefert bis zum Ablauf dieser 3h weiterhin NXDOMAIN, **obwohl der Eintrag auf der NAS längst korrekt existiert**. Diagnose: direkt gegen die NAS statt die FritzBox abfragen —
-```bash
-nslookup <name>.ema-industrie.de 192.168.178.100
-```
-Liefert das die richtige IP, ist es nur der FritzBox-Cache. **Ein FritzBox-Reconnect ("Neu verbinden") hebt diesen Cache NICHT auf** (erneuert nur die WAN-Verbindung, nicht den internen DNS-Resolver-Cache) — verifiziert 2026-08-18, half nicht. Fix ohne Risiko (kein FritzBox-Neustart nötig, wichtig bei Remote-/VPN-Zugriff): entweder die vollen 3h seit dem ersten NXDOMAIN abwarten, oder als Sofortlösung auf dem eigenen Rechner einen `hosts`-Eintrag setzen (`192.168.178.70 <name>.ema-industrie.de`), oder testweise direkt die NAS als DNS-Server eintragen (`networksetup -setdnsservers "<Interface>" 192.168.178.100` auf macOS). **Lektion fürs nächste Mal:** beim Rollout eines neuen Dashboards den DNS-Namen erst testen, NACHDEM der A-Record auf der NAS existiert, nie vorher — sonst produziert man sich diesen bis zu 3h anhaltenden Cache-Fall selbst.
-
 ---
 
 ## 3. Reverse Proxy — Caddy (Docker, auf dem Mac mini)
@@ -125,7 +119,7 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 | Name | Subdomain | Container-Name | Interner Port | Status |
 |---|---|---|---|---|
 | EMA-Dashboard (Auktionsboard) | dashboard.ema-industrie.de | auktionsboard | 5000 | Live |
-| Dashboard-Todo | dashboard-todo.ema-industrie.de | dashboard-todo | 5100 | Container läuft, DNS-Eintrag korrekt angelegt, aber wegen FritzBox-Negativ-Cache aktuell noch nicht über die Domain erreichbar (siehe Abschnitt 2) |
+| Dashboard-Todo | dashboard-todo.ema-industrie.de | dashboard-todo | 5100 | Noch nicht aktiv |
 | Gutachten-Dashboard | — | — | — | In Einrichtung (Umzug intern geplant) |
 | Abholungen-Dashboard | — | — | — | In Einrichtung |
 
@@ -148,7 +142,7 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 
 ## 8. Standard-Workflow: Neues Dashboard hinzufügen
 
-1. **DNS:** A-Record auf Synology NAS anlegen (`<name>.ema-industrie.de` → 192.168.178.70). **Vor dem ersten `nslookup`-Test warten, bis der Eintrag wirklich gespeichert ist** (siehe FritzBox-Negativ-Cache-Falle, Abschnitt 2) — sonst produziert man sich selbst einen bis zu 3h anhaltenden Cache-Fehler (negative-Cache-TTL laut SOA-Record).
+1. **DNS:** A-Record auf Synology NAS anlegen (`<name>.ema-industrie.de` → 192.168.178.70) — **möglichst früh im Prozess anlegen**, da ein neuer Eintrag über die FritzBox/VPN bis zu 3h durch negatives Caching verzögert sichtbar werden kann (siehe Abschnitt 10). Mit `dig <name>.ema-industrie.de @192.168.178.100` prüfen, ob die NAS selbst schon korrekt antwortet.
 2. **Port vergeben:** nächsten freien Port im passenden Bereich wählen (siehe Abschnitt 5, Port-Konvention)
 3. **Projekt vorbereiten:** Repo/Ordner auf dem Mac mini anlegen, Docker-Compose-Service definieren, `caddy-net` als externes Netzwerk einbinden
 4. **Starten:** `docker compose up --build -d`
@@ -187,8 +181,7 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 - Mac mini LaunchAgent-Startskript: soll robuster werden, damit fehlgeschlagene SMB-Mounts Docker-Start nicht kompromittieren
 - Backup-Mechanismus für `dashboard-todo`: aktuell kein automatisches Backup (nur manueller Export) — Nachrüsten (versionierte Kopien + NAS-Spiegelung, analog EMA-Dashboard) besprochen, aber noch nicht umgesetzt
 - Internes HTTPS: aktuell laufen alle internen Dashboards über `http://` (Caddy Port 80) — falls später auf HTTPS umgestellt wird, müssen Caddyfile, Portalseiten-Links und SERVICES-URLs gemeinsam angepasst werden
-- **DNS-Rebind-Schutz (FritzBox):** Verifiziert 2026-08-18 per `nslookup dashboard.ema-industrie.de 192.168.178.1` von einem VPN-Client aus — Auflösung funktioniert korrekt (`192.168.178.70`), kein Blockieren feststellbar. Kein aktives Problem, kein Handlungsbedarf. Falls künftig doch Auflösungsprobleme über VPN auftreten sollten: erneut mit `nslookup` gegen `192.168.178.1` testen, bevor Änderungen an der FritzBox vorgenommen werden.
-- **`dashboard-todo` aktuell nicht über die Domain erreichbar** (Stand 2026-08-18, laufender Rollout): Container läuft, DNS-Eintrag korrekt, Caddy-Reload erfolgreich, `docker exec caddy wget -qO- http://dashboard-todo:5100/api/data` liefert die echten Daten — aber FritzBox-Auflösung liefert weiterhin NXDOMAIN wegen negativem DNS-Cache (siehe Falle in Abschnitt 2, negative-Cache-TTL laut SOA-Record: 3h). Ein FritzBox-Reconnect ("Neu verbinden") wurde getestet und half **nicht** gegen diesen Cache. Fix ausstehend: volle 3h seit erstem NXDOMAIN abwarten, oder `hosts`-Datei-Eintrag als Sofortlösung, oder DNS-Server des testenden Rechners direkt auf die NAS (`192.168.178.100`) umstellen. **Kein FritzBox-Neustart**, solange der Zugriff remote/über VPN läuft (Risiko, sich selbst auszusperren).
+- **Negativer DNS-Cache bei neuen Einträgen (FritzBox):** Verifiziert 2026-08-18 — wenn ein neuer DNS-Eintrag auf der NAS angelegt wird, kann die FritzBox einen vorher gecachten NXDOMAIN (aus einer Abfrage vor Anlage des Eintrags) bis zu **3 Stunden** (negative-Cache-TTL laut SOA-Record: `10800s`, siehe `dig ema-industrie.de SOA @192.168.178.100`) weiter ausliefern, obwohl die NAS selbst längst korrekt antwortet (verifizierbar via `dig <name>.ema-industrie.de @192.168.178.100`). **Wichtig:** Ein "Internet trennen/neu verbinden" in der FritzBox-Oberfläche (Internet → Online-Monitor) behebt das **nicht** — das erneuert nur die WAN-Verbindung, nicht den internen DNS-Resolver-Cache. Getestet und bestätigt wirkungslos. **Praktischer Umgang:** Nach Anlage eines neuen DNS-Eintrags bis zu 3h einplanen, bevor er über die FritzBox (und damit für VPN-Clients) sichtbar ist. Für sofortigen eigenen Zugriff: lokaler `hosts`-Datei-Eintrag (`192.168.178.70 <name>.ema-industrie.de` in `C:\Windows\System32\drivers\etc\hosts`) als Workaround, betrifft nur den eigenen Rechner.
 
 ---
 
