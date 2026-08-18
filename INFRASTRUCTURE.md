@@ -180,6 +180,30 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 
 ---
 
+## 9a. Update-Skripte (`~/bin/` auf dem Mac mini)
+
+Diese Skripte liegen nur lokal auf dem Mac mini (nicht Teil eines Git-Repos) — hier als Referenz/Backup dokumentiert, damit ihr Inhalt nicht ausschließlich auf dem einen Rechner existiert.
+
+**`~/bin/update-dashboard.sh`** (Haupt-Dashboard, EMA/Auktionsboard):
+```bash
+#!/bin/bash
+cd ~/dashboard-ema
+git pull
+docker compose up --build -d
+```
+
+**`~/bin/update-dashboard-todo.sh`** (dieses Todo-Dashboard):
+```bash
+#!/bin/bash
+cd ~/dashboard-todo
+git pull
+docker compose up --build -d
+```
+
+Beide folgen demselben Muster (siehe Abschnitt 8, Schritt 7) — bei jedem neuen Dashboard ein analoges `update-<name>.sh` anlegen und hier eintragen.
+
+---
+
 ## 10. Offene / bekannte Punkte (Stand siehe Datum oben)
 
 - TigerVNC-Performance: externe VPN-Verbindung schneller als lokaler Netzwerkzugriff — Ursache ungeklärt
