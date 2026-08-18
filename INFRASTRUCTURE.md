@@ -37,19 +37,24 @@
 
 **Bei neuem Dashboard:** neuen A-Record `<name>.ema-industrie.de` → `192.168.178.70` anlegen (intern). Falls extern nötig: separat klären, ob über NAS-Reverse-Proxy (Port 8443-Modell) oder ausschließlich intern/VPN.
 
+> **Offen:** `dashboard-todo.ema-industrie.de` ist in der Caddyfile bereits als Block angelegt (siehe Abschnitt 3), aber **noch nicht** in dieser DNS-Liste bestätigt. Vor dem ersten externen/internen Testaufruf auf der NAS prüfen/anlegen.
+
 ---
 
 ## 3. Reverse Proxy — Caddy (Docker, auf dem Mac mini)
 
-**Bestätigter Fakt (nicht mehr annehmen!):** Caddy läuft als eigener Docker-Container auf dem Mac mini, **nicht** nativ.
+**Bestätigter Fakt (verifiziert 2026-08-18):** Caddy läuft als eigener Docker-Container auf dem Mac mini, gestartet über `docker compose` (Datei: `/Users/mac-ema/caddy/docker-compose.yml`) — nicht mehr per manuellem `docker run`. Dadurch ist der Container-Zustand jetzt reproduzierbar dokumentiert statt nur "live gewachsen".
 
 ```
 Container: caddy (Image: caddy:latest)
+Gestartet über: /Users/mac-ema/caddy/docker-compose.yml
 Ports: 0.0.0.0:80->80/tcp
 Mounts:
   - /Users/mac-ema/caddy/Caddyfile → /etc/caddy/Caddyfile
   - /Users/mac-ema/caddy/portal    → /srv/portal
-Netzwerk: caddy-net (gemeinsames Docker-Netzwerk für Caddy + alle Dashboards)
+Netzwerke (beide bestätigt, verifiziert 2026-08-18):
+  - caddy-net (172.19.0.2)             — für alle künftigen Dashboard-Container
+  - dashboard-ema_default (172.18.0.3) — bestehendes Netzwerk des EMA-Dashboards (auktionsboard)
 ```
 
 **Aktuelle Caddyfile (Stand: siehe Datum oben):**
@@ -78,9 +83,10 @@ docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 ## 4. Docker-Netzwerk
 
 ```
-docker network create caddy-net   # einmalig, bereits erledigt
-docker network connect caddy-net caddy   # Caddy ist bereits Mitglied
+docker network create caddy-net
+docker network connect caddy-net caddy
 ```
+**Status (verifiziert 2026-08-18 via `docker network ls` + `docker inspect caddy`):** `caddy-net` wurde neu angelegt und Caddy erfolgreich verbunden. Caddy ist jetzt in **beiden** Netzwerken aktiv: `caddy-net` und `dashboard-ema_default`. Da Caddy per Compose läuft (siehe Abschnitt 3), ist `caddy-net` zusätzlich fest in der `docker-compose.yml` als `external: true` eingetragen — bleibt also auch nach einem Neuaufbau des Containers erhalten.
 Jedes neue Dashboard-Compose-File muss `caddy-net` als externes Netzwerk einbinden, damit Caddy es per Containername erreichen kann.
 
 ---
@@ -149,16 +155,29 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 
 ---
 
-## 9. Offene / bekannte Punkte (Stand siehe Datum oben)
+## 9. GitHub-Struktur
+
+- **Account:** `Bronko-Trenntuer`
+- **Prinzip:** Ein Repo pro Dashboard (kein Mono-Repo)
+- **Sichtbarkeit:** Alle Repos **privat**
+- Bestätigtes Beispiel: `Bronko-Trenntuer/dashboard-todo`
+- Deploy-Workflow (aus bisherigen Rollouts): `git clone` auf den Mac mini → eigener Docker-Compose-Service → Update über `update-<name>.sh`-Skript (`git pull` + `docker compose up --build -d`)
+
+> Offen/zu klären bei Gelegenheit: vollständige Repo-Liste (welche Dashboards haben schon ein Repo), ob es ein separates Repo für Caddy/Portal/Infra-Konfiguration gibt oder ob das nur lokal auf dem Mac mini liegt, Branching-Strategie, CI/CD (aktuell nicht bekannt, vermutlich keins).
+
+---
+
+## 10. Offene / bekannte Punkte (Stand siehe Datum oben)
 
 - TigerVNC-Performance: externe VPN-Verbindung schneller als lokaler Netzwerkzugriff — Ursache ungeklärt
 - Synology File Station: gelöschte Ordner tauchen wegen bidirektionalem Cloud Sync mit SharePoint wieder auf
 - Mac mini LaunchAgent-Startskript: soll robuster werden, damit fehlgeschlagene SMB-Mounts Docker-Start nicht kompromittieren
 - Backup-Mechanismus für `dashboard-todo`: aktuell kein automatisches Backup (nur manueller Export) — Nachrüsten (versionierte Kopien + NAS-Spiegelung, analog EMA-Dashboard) besprochen, aber noch nicht umgesetzt
 - Internes HTTPS: aktuell laufen alle internen Dashboards über `http://` (Caddy Port 80) — falls später auf HTTPS umgestellt wird, müssen Caddyfile, Portalseiten-Links und SERVICES-URLs gemeinsam angepasst werden
+- **DNS-Eintrag für `dashboard-todo.ema-industrie.de` in Abschnitt 2 noch nicht bestätigt** (Caddyfile-Block existiert bereits, DNS-Liste in Abschnitt 2 listet ihn aber noch nicht mit auf) — vor dem ersten Testaufruf auf der NAS prüfen/anlegen.
 
 ---
 
-## 10. Grundregel für zukünftige Chats
+## 11. Grundregel für zukünftige Chats
 
 Bei jedem neuen Infrastruktur-Thema: **erst diese Datei (bzw. aktuelle Befehlsausgaben wie `docker ps -a`, `docker inspect <container>`, `cat Caddyfile`) prüfen, dann planen** — nicht umgekehrt. Wenn sich seit der letzten Aktualisierung etwas geändert hat, das hier nicht (mehr) stimmt, das explizit vermerken statt stillschweigend zu überschreiben.
