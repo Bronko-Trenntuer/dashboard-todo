@@ -1,16 +1,25 @@
-# Port-Registry Mac mini
+# Reverse-Proxy-Registry Mac mini
 
-Übersicht aller lokal auf dem Mac mini laufenden Dashboard-Container und ihrer
-Host-Ports. Caddy läuft nativ auf dem Mac mini und spricht jeden Container
-über seinen veröffentlichten Host-Port an (kein gemeinsames Docker-Netzwerk).
+Caddy läuft als eigener Docker-Container (`~/caddy/Caddyfile` auf dem Mac mini,
+NICHT Teil dieses oder eines anderen Dashboard-Repos) und erreicht jedes
+Dashboard über dessen Container-Namen im gemeinsamen Docker-Netzwerk
+**`caddy-net`** — kein Host-Port-Mapping nötig. Jeder Dashboard-Container muss
+diesem Netzwerk beitreten (`networks: [caddy-net]` in seiner `docker-compose.yml`,
+als `external: true` deklariert).
 
-Vor der Vergabe eines neuen Ports: `docker ps` und die Caddyfile prüfen, ob
-der Port nicht bereits (auch von einem Nicht-Docker-Dienst) belegt ist. Neue
-Ports einfach fortlaufend hochzählen.
+Vor dem ersten Start eines neuen Dashboards prüfen, ob `caddy-net` existiert
+(`docker network ls`) und Caddy dort bereits Mitglied ist
+(`docker inspect caddy --format '{{json .NetworkSettings.Networks}}'`).
 
-| Port | Dashboard      | Repo               | Domain/Subdomain (Caddy) |
-|------|----------------|---------------------|--------------------------|
-| 5050 | auktionsboard  | ~/dashboard-ema      | (siehe Caddyfile)        |
-| 8130 | dashboard-todo | ~/dashboard-todo     | (siehe Caddyfile)        |
+| Container-Name  | Interner Port | Repo               | Domain (Caddyfile)              |
+|------------------|---------------|---------------------|----------------------------------|
+| auktionsboard    | 5000          | ~/dashboard-ema      | dashboard.ema-industrie.de       |
+| dashboard-todo   | 8123          | ~/dashboard-todo     | dashboard-todo.ema-industrie.de  |
 
-Nächster freier Port: **8131**
+Neue Einträge in der `Caddyfile` folgen dem Muster:
+```
+<subdomain>.ema-industrie.de:80 {
+    reverse_proxy <container-name>:<interner-port>
+}
+```
+Nach jeder Änderung an der Caddyfile: `docker exec caddy caddy reload --config /etc/caddy/Caddyfile`.

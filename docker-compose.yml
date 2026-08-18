@@ -1,21 +1,34 @@
 # Nach dem Muster von ~/dashboard-ema: git pull + docker compose up --build -d
-# Caddy laeuft auf dem Mac mini nativ (kein eigener Docker-Container/Netzwerk)
-# und spricht Container ueber den veroeffentlichten Host-Port an, siehe
-# auktionsboard (Port 5050). Fuer dieses Dashboard: Port 8130.
+#
+# Caddy (separater, manuell verwalteter Container, Caddyfile unter
+# /Users/mac-ema/caddy/Caddyfile) erreicht andere Dashboards ueber den
+# Container-Namen im gemeinsamen Docker-Netzwerk "caddy-net" (siehe
+# auktionsboard-Eintrag: "reverse_proxy auktionsboard:5000"). Damit Caddy
+# diesen Container ebenso erreichen kann, muss "caddy-net" einmalig
+# angelegt und Caddy dort hinzugefuegt werden (siehe README/Anleitung),
+# BEVOR dieser Compose-Stack zum ersten Mal gestartet wird:
+#   docker network create caddy-net
+#   docker network connect caddy-net caddy
+#
+# Kein Host-Port noetig - Caddy spricht den Container direkt im Netzwerk an.
 #
 # Die Datenbank-Datei liegt bewusst NICHT im (SynologyDrive-gesyncten)
 # Projektordner, sondern unter einem absoluten, nicht gesyncten Pfad auf dem
 # Mac mini - gleiches Prinzip wie instance/ bei ~/dashboard-ema: ein
 # Sync-Eingriff waehrend des Schreibens darf die Live-Daten nicht zerstoeren.
-# Pfad bei Bedarf anpassen, Verzeichnis muss vorher existieren:
+# Verzeichnis muss vor dem ersten Start existieren:
 #   mkdir -p /Users/mac-ema/dashboard-todo-data
 
 services:
   dashboard-todo:
     build: .
     container_name: dashboard-todo
-    ports:
-      - "8130:8123"
     volumes:
       - /Users/mac-ema/dashboard-todo-data/dashboard-daten.json:/app/dashboard-daten.json
     restart: unless-stopped
+    networks:
+      - caddy-net
+
+networks:
+  caddy-net:
+    external: true
