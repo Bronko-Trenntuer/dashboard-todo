@@ -8,7 +8,7 @@ import os
 import socketserver
 import threading
 
-PORT = int(os.environ.get("PORT", "8123"))
+PORT = int(os.environ.get("PORT", "5100"))
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard-daten.json")
 data_lock = threading.Lock()
 

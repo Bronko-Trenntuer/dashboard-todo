@@ -5,12 +5,15 @@
 # Container-Namen im gemeinsamen Docker-Netzwerk "caddy-net" (siehe
 # auktionsboard-Eintrag: "reverse_proxy auktionsboard:5000"). Damit Caddy
 # diesen Container ebenso erreichen kann, muss "caddy-net" einmalig
-# angelegt und Caddy dort hinzugefuegt werden (siehe README/Anleitung),
+# angelegt und Caddy dort hinzugefuegt werden (siehe INFRASTRUCTURE.md),
 # BEVOR dieser Compose-Stack zum ersten Mal gestartet wird:
 #   docker network create caddy-net
 #   docker network connect caddy-net caddy
 #
-# Kein Host-Port noetig - Caddy spricht den Container direkt im Netzwerk an.
+# Kein Host-Port noetig - Caddy spricht den Container direkt im Netzwerk an,
+# ueber Port 5100 (siehe INFRASTRUCTURE.md Abschnitt 5, Port-Konvention:
+# 5100-5199 = interne Verwaltungs-/Support-Dashboards). Muss mit dem Port
+# in Dockerfile (EXPOSE) und server.py (PORT-Default) uebereinstimmen.
 #
 # Die Datenbank-Datei liegt bewusst NICHT im (SynologyDrive-gesyncten)
 # Projektordner, sondern unter einem absoluten, nicht gesyncten Pfad auf dem
