@@ -1,0 +1,16 @@
+# Nach dem Muster von ~/dashboard-ema: git pull + docker compose up --build -d
+# "caddy_net" ggf. anpassen an den tatsächlichen Netzwerknamen des Caddy-Containers (docker network ls).
+
+services:
+  dashboard-todo:
+    build: .
+    container_name: dashboard-todo
+    restart: unless-stopped
+    volumes:
+      - ./public/dashboard-daten.json:/app/dashboard-daten.json
+    networks:
+      - caddy_net
+
+networks:
+  caddy_net:
+    external: true

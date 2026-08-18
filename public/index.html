@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Projekt-Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <h1>Projekte</h1>
+      <button id="theme-toggle-btn" class="icon-btn theme-toggle" title="Hell/Dunkel umschalten">🌙</button>
+    </div>
+
+    <div class="current-user-box">
+      <span id="current-user-label">Nicht angemeldet</span>
+      <button id="switch-user-btn" class="btn btn-secondary btn-small">Wechseln</button>
+    </div>
+
+    <div class="search-wrap">
+      <input id="global-search-input" type="text" placeholder="ToDos durchsuchen...">
+      <div id="search-results" class="search-results" hidden></div>
+    </div>
+
+    <div id="project-list" class="project-list"></div>
+
+    <div id="team-sync-box" class="team-sync-box">
+      <div class="team-sync-title">Zentraler Server</div>
+      <div id="team-sync-status" class="team-sync-status">Verbinde...</div>
+    </div>
+
+    <button id="add-project-btn" class="btn btn-primary btn-block">+ Neues Projekt</button>
+
+    <div class="backup-actions">
+      <button id="export-btn" class="btn btn-secondary btn-block">Backup exportieren</button>
+      <button id="import-btn" class="btn btn-secondary btn-block">Backup importieren</button>
+      <input id="import-file-input" type="file" accept="application/json" hidden>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div id="empty-state" class="empty-state">
+      <p>Wähle links ein Projekt aus oder lege ein neues an.</p>
+    </div>
+
+    <div id="project-view" class="project-view" hidden>
+      <header class="project-header">
+        <div>
+          <h2 id="project-name"></h2>
+          <p id="project-path" class="project-path"></p>
+        </div>
+        <div class="header-actions">
+          <button id="activity-log-btn" class="btn btn-secondary">Verlauf</button>
+          <button id="excel-export-btn" class="btn btn-secondary" title="ToDos als Excel-Datei exportieren">Excel-Export</button>
+          <button id="edit-project-btn" class="btn btn-secondary">Bearbeiten</button>
+          <button id="delete-project-btn" class="btn btn-danger">Löschen</button>
+        </div>
+      </header>
+
+      <div class="progress-bar-wrap">
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+        <span id="progress-text" class="progress-text"></span>
+      </div>
+
+      <div class="category-tabs-wrap">
+        <div id="category-tabs" class="category-tabs"></div>
+        <button id="manage-categories-btn" class="btn btn-secondary btn-small">Kategorien verwalten</button>
+      </div>
+
+      <div class="toolbar">
+        <button id="add-todo-btn" class="btn btn-primary">+ Neues ToDo</button>
+        <input id="todo-search-input" type="text" placeholder="In diesem Projekt suchen..." class="toolbar-search">
+        <select id="sort-by">
+          <option value="created_desc">Neueste zuerst</option>
+          <option value="created_asc">Älteste zuerst</option>
+          <option value="status">Nach Status</option>
+        </select>
+        <div class="view-toggle">
+          <button id="view-list-btn" type="button" class="view-toggle-btn active" data-view="list">Liste</button>
+          <button id="view-kanban-btn" type="button" class="view-toggle-btn" data-view="kanban">Kanban</button>
+        </div>
+      </div>
+
+      <div id="status-filter" class="status-filter"></div>
+      <div id="creator-filter" class="status-filter"></div>
+
+      <div id="todo-list" class="todo-list"></div>
+      <div id="kanban-board" class="kanban-board" hidden></div>
+    </div>
+  </main>
+</div>
+
+<!-- Project Modal -->
+<div id="project-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <h3 id="project-modal-title">Neues Projekt</h3>
+    <label>Projektname</label>
+    <input id="project-name-input" type="text" placeholder="z.B. Kunden-Chatbot">
+    <label>Pfad / Verzeichnis (optional)</label>
+    <input id="project-path-input" type="text" placeholder="z.B. C:\Projekte\Kunden-Chatbot">
+    <label>Beschreibung (optional)</label>
+    <textarea id="project-desc-input" rows="3" placeholder="Kurze Beschreibung des Projekts"></textarea>
+    <div class="modal-actions">
+      <button id="project-cancel-btn" class="btn btn-secondary">Abbrechen</button>
+      <button id="project-save-btn" class="btn btn-primary">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Todo Modal -->
+<div id="todo-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <h3 id="todo-modal-title">Neues ToDo</h3>
+    <label>Titel</label>
+    <input id="todo-title-input" type="text" placeholder="Was ist zu tun?">
+    <label>Beschreibung / Notizen (optional)</label>
+    <textarea id="todo-desc-input" rows="3" placeholder="Details, Testschritte, Links..."></textarea>
+    <label>Status</label>
+    <select id="todo-status-input">
+      <option value="offen">Offen</option>
+      <option value="in_arbeit">In Arbeit</option>
+      <option value="zu_testen">Zu testen</option>
+      <option value="fertig">Fertig</option>
+    </select>
+    <label>Kategorie</label>
+    <select id="todo-category-input">
+      <option value="">Keine Kategorie</option>
+    </select>
+    <label>Erstellt von</label>
+    <select id="todo-creator-input">
+      <option value="">Unbekannt</option>
+    </select>
+    <label>Unteraufgaben</label>
+    <div id="subtask-list" class="subtask-list"></div>
+    <div class="inline-form">
+      <input id="new-subtask-input" type="text" placeholder="Neue Unteraufgabe...">
+      <button id="add-subtask-btn" class="btn btn-secondary">+ Hinzufügen</button>
+    </div>
+    <div class="modal-actions">
+      <button id="todo-cancel-btn" class="btn btn-secondary">Abbrechen</button>
+      <button id="todo-save-btn" class="btn btn-primary">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Activity Log Modal -->
+<div id="activity-log-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <h3>Verlauf</h3>
+    <div id="activity-log-list" class="activity-log-list"></div>
+    <div class="modal-actions">
+      <button id="activity-log-close-btn" class="btn btn-secondary">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Categories Modal -->
+<div id="categories-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <h3>Kategorien verwalten</h3>
+    <div id="category-manage-list" class="category-manage-list"></div>
+    <label>Neue Kategorie</label>
+    <div class="inline-form">
+      <input id="new-category-input" type="text" placeholder="z.B. Frontend, Backend, Tests">
+      <button id="add-category-btn" class="btn btn-primary">Hinzufügen</button>
+    </div>
+    <div class="modal-actions">
+      <button id="categories-close-btn" class="btn btn-secondary">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- User Select Modal -->
+<div id="user-select-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <h3>Wer bist du?</h3>
+    <div id="user-select-list" class="inline-form" style="flex-direction: column; align-items: stretch;"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
