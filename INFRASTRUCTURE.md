@@ -30,14 +30,27 @@
 
 - Synology NAS ist autoritativer Nameserver für die Zone **`ema-industrie.de`**
 - Split-DNS: intern und extern werden Subdomains unterschiedlich aufgelöst
-- Bestehende Einträge:
-  - `dashboard.ema-industrie.de` → 192.168.178.70
-  - `portal.ema-industrie.de` → 192.168.178.70
-  - `drive.ema-industrie.de` → NAS (Synology Drive)
+- **Vollständige Zonen-Einträge (verifiziert 2026-08-18 per Screenshot, TTL jeweils 86400s):**
+
+| Name | Typ | Ziel |
+|---|---|---|
+| `ema-industrie.de.` | NS | `ns.ema-industrie.de.` |
+| `ema-industrie.de.` | A | `217.160.0.104` (öffentlich, vermutlich Website/Hosting) |
+| `www.ema-industrie.de.` | A | `217.160.0.104` |
+| `ns.ema-industrie.de.` | A | `192.168.178.100` |
+| `autodiscover.ema-industrie.de.` | CNAME | `adsredir.ionos.info.` (Microsoft-365-Autodiscover) |
+| `dashboard.ema-industrie.de.` | A | `192.168.178.70` |
+| `dashboard-todo.ema-industrie.de.` | A | `192.168.178.70` |
+| `portal.ema-industrie.de.` | A | `192.168.178.70` |
+| `drive.ema-industrie.de.` | A | `192.168.178.100` |
 
 **Bei neuem Dashboard:** neuen A-Record `<name>.ema-industrie.de` → `192.168.178.70` anlegen (intern). Falls extern nötig: separat klären, ob über NAS-Reverse-Proxy (Port 8443-Modell) oder ausschließlich intern/VPN.
 
-> **Offen:** `dashboard-todo.ema-industrie.de` ist in der Caddyfile bereits als Block angelegt (siehe Abschnitt 3), aber **noch nicht** in dieser DNS-Liste bestätigt. Vor dem ersten externen/internen Testaufruf auf der NAS prüfen/anlegen.
+**Wichtige Falle (gefunden 2026-08-18 beim `dashboard-todo`-Rollout):** Alle Einträge haben TTL `86400` (24h). Testet man einen Namen per `nslookup` **bevor** der A-Record angelegt ist, cached die FritzBox (`192.168.178.1`) diese NXDOMAIN-Antwort negativ — vermutlich für dieselbe Größenordnung (SOA-Minimum-TTL der Zone). Ein späteres erneutes `nslookup` über die FritzBox liefert dann weiterhin NXDOMAIN, **obwohl der Eintrag auf der NAS längst korrekt existiert**. Diagnose: direkt gegen die NAS statt die FritzBox abfragen —
+```bash
+nslookup <name>.ema-industrie.de 192.168.178.100
+```
+Liefert das die richtige IP, ist es nur der FritzBox-Cache. Fix ohne Risiko (kein FritzBox-Neustart nötig, wichtig bei Remote-/VPN-Zugriff): auf dem abfragenden Rechner testweise direkt die NAS als DNS-Server eintragen (`networksetup -setdnsservers "<Interface>" 192.168.178.100` auf macOS), oder schlicht die TTL abwarten. **Lektion fürs nächste Mal:** beim Rollout eines neuen Dashboards den DNS-Namen erst testen, NACHDEM der A-Record auf der NAS existiert, nie vorher — sonst produziert man sich diesen Cache-Fall selbst.
 
 ---
 
@@ -112,7 +125,7 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 | Name | Subdomain | Container-Name | Interner Port | Status |
 |---|---|---|---|---|
 | EMA-Dashboard (Auktionsboard) | dashboard.ema-industrie.de | auktionsboard | 5000 | Live |
-| Dashboard-Todo | dashboard-todo.ema-industrie.de | dashboard-todo | 5100 | Noch nicht aktiv |
+| Dashboard-Todo | dashboard-todo.ema-industrie.de | dashboard-todo | 5100 | Container läuft, DNS-Eintrag korrekt angelegt, aber wegen FritzBox-Negativ-Cache aktuell noch nicht über die Domain erreichbar (siehe Abschnitt 2) |
 | Gutachten-Dashboard | — | — | — | In Einrichtung (Umzug intern geplant) |
 | Abholungen-Dashboard | — | — | — | In Einrichtung |
 
@@ -135,7 +148,7 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 
 ## 8. Standard-Workflow: Neues Dashboard hinzufügen
 
-1. **DNS:** A-Record auf Synology NAS anlegen (`<name>.ema-industrie.de` → 192.168.178.70)
+1. **DNS:** A-Record auf Synology NAS anlegen (`<name>.ema-industrie.de` → 192.168.178.70). **Vor dem ersten `nslookup`-Test warten, bis der Eintrag wirklich gespeichert ist** (siehe FritzBox-Negativ-Cache-Falle, Abschnitt 2) — sonst produziert man sich selbst einen bis zu 24h anhaltenden Cache-Fehler.
 2. **Port vergeben:** nächsten freien Port im passenden Bereich wählen (siehe Abschnitt 5, Port-Konvention)
 3. **Projekt vorbereiten:** Repo/Ordner auf dem Mac mini anlegen, Docker-Compose-Service definieren, `caddy-net` als externes Netzwerk einbinden
 4. **Starten:** `docker compose up --build -d`
@@ -174,7 +187,8 @@ Bereichs-basiertes Schema, damit der Port allein schon die Kategorie eines Diens
 - Mac mini LaunchAgent-Startskript: soll robuster werden, damit fehlgeschlagene SMB-Mounts Docker-Start nicht kompromittieren
 - Backup-Mechanismus für `dashboard-todo`: aktuell kein automatisches Backup (nur manueller Export) — Nachrüsten (versionierte Kopien + NAS-Spiegelung, analog EMA-Dashboard) besprochen, aber noch nicht umgesetzt
 - Internes HTTPS: aktuell laufen alle internen Dashboards über `http://` (Caddy Port 80) — falls später auf HTTPS umgestellt wird, müssen Caddyfile, Portalseiten-Links und SERVICES-URLs gemeinsam angepasst werden
-- **DNS-Eintrag für `dashboard-todo.ema-industrie.de` in Abschnitt 2 noch nicht bestätigt** (Caddyfile-Block existiert bereits, DNS-Liste in Abschnitt 2 listet ihn aber noch nicht mit auf) — vor dem ersten Testaufruf auf der NAS prüfen/anlegen.
+- **DNS-Rebind-Schutz (FritzBox):** Verifiziert 2026-08-18 per `nslookup dashboard.ema-industrie.de 192.168.178.1` von einem VPN-Client aus — Auflösung funktioniert korrekt (`192.168.178.70`), kein Blockieren feststellbar. Kein aktives Problem, kein Handlungsbedarf. Falls künftig doch Auflösungsprobleme über VPN auftreten sollten: erneut mit `nslookup` gegen `192.168.178.1` testen, bevor Änderungen an der FritzBox vorgenommen werden.
+- **`dashboard-todo` aktuell nicht über die Domain erreichbar** (Stand 2026-08-18, laufender Rollout): Container läuft, DNS-Eintrag korrekt, Caddy-Reload erfolgreich, `docker exec caddy wget -qO- http://dashboard-todo:5100/api/data` liefert die echten Daten — aber externe/FritzBox-Auflösung liefert weiterhin NXDOMAIN wegen negativem DNS-Cache (siehe Falle in Abschnitt 2). Fix ausstehend: entweder TTL abwarten oder DNS-Server des testenden Rechners direkt auf die NAS (`192.168.178.100`) umstellen. **Kein FritzBox-Neustart**, solange der Zugriff remote/über VPN läuft (Risiko, sich selbst auszusperren).
 
 ---
 
