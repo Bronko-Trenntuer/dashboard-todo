@@ -80,10 +80,16 @@ dashboard-todo.ema-industrie.de:80 {
 
 **Wichtig:** Caddy erreicht die Dashboard-Container über den **Container-Namen im gemeinsamen Docker-Netzwerk** (`caddy-net`), nicht über Host-Ports. Jeder neue Dashboard-Container muss diesem Netzwerk beitreten.
 
-**Reload nach Änderung (kein Neustart nötig):**
+**Reload nach Änderung (normalerweise kein Neustart nötig):**
 ```
 docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
+
+**Bekannte Falle (aufgetreten 2026-08-18 beim `dashboard-todo`-Rollout):** Der Reload lief ohne Fehlermeldung durch (Logs sahen unauffällig aus), aber der neue Site-Block wurde **nicht wirklich in die laufende Konfiguration übernommen** — Anfragen an den neuen Hostnamen verhielten sich identisch zu einem komplett unbekannten/erfundenen Hostnamen (`200 OK`, `Content-Length: 0`), obwohl der Block in der Datei korrekt vorhanden war. Diagnose: neuen Host UND einen frei erfundenen Host testweise mit identischem Host-Header direkt gegen `localhost` abfragen (`curl -H "Host: <name>" http://localhost/` auf dem Mac mini) — liefern beide dasselbe Leer-Ergebnis, während ein bekannter, funktionierender Host (`dashboard.ema-industrie.de`) echten Inhalt zurückgibt, ist der neue Block trotz korrekter Datei nicht aktiv. **Fix:** vollen Container-Neustart statt Reload:
+```
+docker restart caddy
+```
+Das betrifft kurz **alle** dahinterliegenden Dashboards (Sekunden Downtime), behebt es aber zuverlässig. Nach jedem neuen Caddyfile-Block sicherheitshalber direkt so gegentesten, statt sich auf den Reload-Log allein zu verlassen.
 
 ---
 

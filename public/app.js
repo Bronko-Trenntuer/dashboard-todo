@@ -47,6 +47,7 @@ async function loadData() {
     const data = await res.json();
     state = normalizeState(data);
     lastSyncedJson = JSON.stringify(state);
+    updateSyncStatus('Zentral gespeichert', 'connected');
   } catch (err) {
     const raw = localStorage.getItem(STORAGE_KEY);
     state = normalizeState(raw ? JSON.parse(raw) : { projects: [] });
@@ -91,7 +92,10 @@ async function pollServerData() {
     const res = await fetch('/api/data');
     const data = await res.json();
     const json = JSON.stringify(data);
-    if (json === lastSyncedJson) return;
+    if (json === lastSyncedJson) {
+      updateSyncStatus('Zentral gespeichert', 'connected');
+      return;
+    }
     state = normalizeState(data);
     lastSyncedJson = JSON.stringify(state);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
